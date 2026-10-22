@@ -146,11 +146,22 @@ fn entry_json(e: &LibraryEntry) -> Value {
     })
 }
 
+/// Thumbnail pixel size for `t` asked at width `w`: `w` clamped to 16..=1920, `h` from the
+/// canvas aspect ratio, and the whole thing shrunk to fit `MAX_H` high so a template with an
+/// extreme canvas can't ask for a multi-million-line image (#2781).
+fn thumbnail_size(t: &GraphicsTemplate, w: u32) -> (u32, u32) {
+    const MAX_H: u32 = 1920;
+    let w = w.clamp(16, 1920);
+    let cw = t.canvas[0].max(1) as f64;
+    let ch = t.canvas[1].max(1) as f64;
+    let h = (w as f64 * ch / cw).round() as u64;
+    if h <= MAX_H as u64 { (w, h.max(1) as u32) } else { ((MAX_H as f64 * cw / ch).round().clamp(1.0, w as f64) as u32, MAX_H) }
+}
+
 /// Render a template's thumbnail (static: rolls are shown at rest) as straight sRGB RGBA8,
 /// `w` pixels wide with the template's aspect ratio. Returns (width, height, pixels).
 pub fn thumbnail(t: &GraphicsTemplate, w: u32) -> (u32, u32, Vec<u8>) {
-    let w = w.clamp(16, 1920);
-    let h = ((w as f64 * t.canvas[1] as f64 / t.canvas[0].max(1) as f64).round() as u32).max(1);
+    let (w, h) = thumbnail_size(t, w);
     register_fonts(t);
     let mut meta = t.graphic.clone();
     meta.roll.mode = RollMode::Off;
