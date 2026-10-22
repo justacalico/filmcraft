@@ -453,3 +453,15 @@ fn thumbnail_extreme_canvas_does_not_allocate_by_aspect() {
     assert!(w as u64 * h as u64 <= 1920 * 1920, "{w}x{h}");
     assert_eq!(px.len(), (w * h * 4) as usize);
 }
+
+#[test]
+fn thumbnail_tall_canvas_renders_the_whole_canvas() {
+    let t = filmcraft_project::gtemplate::GraphicsTemplate {
+        canvas: [1, 16384],
+        layers: vec![filmcraft_project::graphic::new_shape_layer(0, filmcraft_geom::Vec2::new(0.5, 12000.0), filmcraft_geom::Vec2::new(1.0, 8000.0), vec![])],
+        ..Default::default()
+    };
+    let (w, h, px) = super::thumbnail(&t, 192);
+    let bottom = h as usize * 3 / 4;
+    assert!(px.chunks(4).skip(bottom * w as usize).any(|p| p[3] > 0), "a shape near the bottom of a tall canvas must reach the thumbnail, not clip past it");
+}

@@ -146,16 +146,16 @@ fn entry_json(e: &LibraryEntry) -> Value {
     })
 }
 
-/// Thumbnail pixel size for `t` asked at width `w`: `w` clamped to 16..=1920, `h` from the
-/// canvas aspect ratio, and the whole thing shrunk to fit `MAX_H` high so a template with an
-/// extreme canvas can't ask for a multi-million-line image (#2781).
+/// Thumbnail pixel size for `t` asked at width `w`: the canvas scaled by one factor that fits it
+/// inside `w`×`MAX_H` (each clamped), so a template with an extreme canvas can't ask for a
+/// multi-million-line image or be drawn clipped (#2781).
 fn thumbnail_size(t: &GraphicsTemplate, w: u32) -> (u32, u32) {
     const MAX_H: u32 = 1920;
     let w = w.clamp(16, 1920);
     let cw = t.canvas[0].max(1) as f64;
     let ch = t.canvas[1].max(1) as f64;
-    let h = (w as f64 * ch / cw).round() as u64;
-    if h <= MAX_H as u64 { (w, h.max(1) as u32) } else { ((MAX_H as f64 * cw / ch).round().clamp(1.0, w as f64) as u32, MAX_H) }
+    let k = (w as f64 / cw).min(MAX_H as f64 / ch);
+    ((cw * k).round().clamp(1.0, w as f64) as u32, (ch * k).round().clamp(1.0, MAX_H as f64) as u32)
 }
 
 /// Render a template's thumbnail (static: rolls are shown at rest) as straight sRGB RGBA8,
@@ -182,7 +182,7 @@ pub fn thumbnail(t: &GraphicsTemplate, w: u32) -> (u32, u32, Vec<u8>) {
     // a moment into the clip, so intro animations have settled a little
     let at = Tick((t.duration.0 / 2).min(filmcraft_time::TICKS_PER_SECOND));
     let mut img = filmcraft_render::image::Image::new(w as usize, h as usize);
-    let k = w as f64 / t.canvas[0].max(1) as f64;
+    let k = (w as f64 / t.canvas[0].max(1) as f64).min(h as f64 / t.canvas[1].max(1) as f64);
     filmcraft_render::graphic_clip::render_graphic(&it, at, (t.canvas[0], t.canvas[1]), &Affine::scale(k, k), &mut img);
     (w, h, img.to_rgba8())
 }
