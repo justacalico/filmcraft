@@ -91,20 +91,39 @@ impl FilmcraftApp {
                 }
                 None => i18n::Language::default(),
             };
-            if language == i18n::Language::Ja && !i18n::install_japanese_font(ctx) {
-                self.ui.language = i18n::Language::En;
-                self.ui.status = tl!("no Japanese font is installed on this system; the interface stays in English").into();
+            // A language whose script has no font falls back to English (the choice is kept and
+            // retried at every start).
+            let missing_font = if language == i18n::Language::Ja && !i18n::install_japanese_font(ctx) {
+                Some(tl!("no Japanese font is installed on this system; the interface stays in English"))
             } else if language == i18n::Language::ZhCn && !i18n::chinese_font_available() {
-                self.ui.language = i18n::Language::En;
-                self.ui.status = tl!("no Chinese font is installed on this system; the interface stays in English").into();
+                Some(tl!("no Chinese font is installed on this system; the interface stays in English"))
             } else if language == i18n::Language::Ko && !i18n::korean_font_available() {
-                self.ui.language = i18n::Language::En;
-                self.ui.status = tl!("no Korean font is installed on this system; the interface stays in English").into();
+                Some(tl!("no Korean font is installed on this system; the interface stays in English"))
             } else {
-                self.ui.language = language;
+                None
+            };
+            if !self.language_applied {
+                // the saved choice takes effect at startup
+                if let Some(msg) = missing_font {
+                    self.ui.language = i18n::Language::En;
+                    self.ui.status = msg.into();
+                } else {
+                    self.ui.language = language;
+                }
+                i18n::set_current(self.ui.language);
+                ctx.set_language(Some(self.ui.language.bcp47().to_owned()));
+                self.language_applied = true;
+            } else if language == self.ui.language || missing_font.is_some() {
+                // a mid-session change takes effect on a restart (Premiere defers it the same
+                // way); switching back needs nothing, and a script the system can't show reports
+                // instead of asking
+                if let Some(msg) = missing_font {
+                    self.ui.status = msg.into();
+                }
+                self.restart_notice = None;
+            } else {
+                self.restart_notice = Some(crate::restart_notice::RestartNotice::new(language));
             }
-            i18n::set_current(self.ui.language);
-            ctx.set_language(Some(self.ui.language.bcp47().to_owned()));
         }
         self.frames.set_cache_budget(p.memory.frame_cache_mb as usize * (1 << 20));
         self.ui.play_after_render = p.timeline.play_after_rendering;
@@ -138,6 +157,26 @@ impl FilmcraftApp {
             }
         }
         self.applied_prefs = Some(p);
+    }
+
+    /// The restart notice's Restart button: close the window (unsaved changes ask to save first,
+    /// as with Quit); `on_exit` relaunches the app through `hooks.restart` so the pending
+    /// interface language takes effect.
+    pub fn begin_restart(&mut self, ctx: &egui::Context) {
+        self.restart_after_quit = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        // a web "window" can't be closed: the restart is the page reload itself
+        #[cfg(target_arch = "wasm32")]
+        self.relaunch();
+    }
+
+    /// Launch a fresh copy of the app (the host's `restart` hook).
+    pub(crate) fn relaunch(&mut self) {
+        if let Some(restart) = self.hooks.restart.as_mut()
+            && let Err(e) = restart()
+        {
+            self.ui.status = e;
+        }
     }
 
     /// Every sequence has its own Timeline view (zoom, scroll, track heights), as Premiere's
