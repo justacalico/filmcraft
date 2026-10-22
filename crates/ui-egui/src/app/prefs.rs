@@ -121,7 +121,9 @@ impl FilmcraftApp {
                     self.ui.status = msg.into();
                 }
                 self.restart_notice = None;
-            } else {
+            } else if !self.restart_notice.as_ref().is_some_and(|n| n.language == language) {
+                // a notice dismissed for this language stays dismissed (`applied_prefs` is
+                // reset when the media pool is, so this block runs again on project open)
                 self.restart_notice = Some(crate::restart_notice::RestartNotice::new(language));
             }
         }
@@ -165,15 +167,38 @@ impl FilmcraftApp {
     pub fn begin_restart(&mut self, ctx: &egui::Context) {
         self.restart_after_quit = true;
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        // a web "window" can't be closed: the restart is the page reload itself
         #[cfg(target_arch = "wasm32")]
+        {
+            // a browser page has no window to close: the unsaved-changes prompt is asked here
+            // and, once confirmed, the hook reloads the page
+            self.quit_confirmed = false;
+            if !crate::panels::clip_dialogs::intercept_quit(self) {
+                self.finish_restart();
+            }
+        }
+    }
+
+    /// The unsaved-changes prompt dismissed without closing: cancel a pending restart and offer
+    /// the notice's buttons again.
+    pub fn cancel_restart(&mut self) {
+        self.restart_after_quit = false;
+        if let Some(n) = self.restart_notice.as_mut() {
+            n.closed = false;
+        }
+    }
+
+    /// On the web the relaunch is the page reload itself: run it once the unsaved-changes prompt
+    /// confirmed (or there was nothing to save), after the session's recovery state is written.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn finish_restart(&mut self) {
+        self.session.shutdown();
         self.relaunch();
     }
 
     /// Launch a fresh copy of the app (the host's `restart` hook).
     pub(crate) fn relaunch(&mut self) {
         if let Some(restart) = self.hooks.restart.as_mut()
-            && let Err(e) = restart()
+            && let Err(e) = restart(&self.session)
         {
             self.ui.status = e;
         }

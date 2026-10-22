@@ -96,8 +96,9 @@ pub struct HostHooks {
     pub clipboard_media: Option<Box<dyn FnMut() -> Option<ClipboardMedia>>>,
     /// Relaunch the app: called from `on_exit` after a restart was asked for (the language-change
     /// notice's Restart button), once auto-save and the recovery journal are flushed. Without it
-    /// Restart only closes the window.
-    pub restart: Option<Box<dyn FnMut() -> Result<(), String>>>,
+    /// Restart only closes the window. The session is passed so the host can persist it first
+    /// (the web writes its OPFS recovery snapshot before reloading).
+    pub restart: Option<Box<dyn FnMut(&Session) -> Result<(), String>>>,
 }
 
 /// What [`HostHooks::clipboard_media`] found on the system clipboard.
