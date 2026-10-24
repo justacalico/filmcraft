@@ -114,7 +114,9 @@ pub fn appearance_context_menu(app: &mut FilmcraftApp, ui: &mut Ui) {
         }
         for (id, label) in group {
             let kind = crate::theme::ThemeKind::from_pref(id);
-            if ui.selectable_label(app.tokens.kind == kind, crate::i18n::t(label)).clicked() {
+            let resp = ui.selectable_label(app.tokens.kind == kind, crate::i18n::t(label));
+            app.auto.add_response(&format!("header.appearanceMenu.{id}"), &resp, label);
+            if resp.clicked() {
                 set_theme(app, ui.ctx(), kind);
                 ui.close();
             }

@@ -437,6 +437,25 @@ fn appearance_labels_and_tooltips_take_effect() {
     assert!(d.harness.ctx.global_style().interaction.tooltip_delay < 1.0);
 }
 
+/// A starred theme is saved to `appearance.favoriteThemes` and listed in the header's
+/// appearance menu; picking OLED there goes through `ThemeKind::from_pref` like the rest.
+#[test]
+fn oled_favorite_can_be_picked_from_the_header_menu() {
+    let mut d = Driver::demo();
+    d.menu("app.settings.appearance");
+    d.click("settings.favorite.oled");
+    d.click("settings.ok");
+    d.frames(2);
+    assert_eq!(d.pref("appearance.favoriteThemes"), json!(["oled"]));
+    d.ok("ui.click", json!({"id": "header.appearance", "button": "right"}));
+    d.frames(2);
+    assert!(d.has("header.appearanceMenu.oled"));
+    d.click("header.appearanceMenu.oled");
+    d.frames(2);
+    assert_eq!(d.harness.state().tokens.kind, filmcraft_ui_egui::theme::ThemeKind::Oled);
+    assert_eq!(d.pref("appearance.colorTheme"), json!("oled"));
+}
+
 #[test]
 fn hex_field_takes_typing_a_character_at_a_time() {
     let mut d = Driver::demo();
