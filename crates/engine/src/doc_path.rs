@@ -93,6 +93,10 @@ pub(crate) fn project_for_document<'p>(
 /// that cannot be followed stays as stored — the media pool records it with the document and
 /// refuses it, so the item reads as missing rather than opening something else.
 pub(crate) fn absolutize(p: &mut Project, document: Option<&str>) {
+    // Web stored paths are the keys of the files the user gave the host: they stay as stored.
+    if cfg!(target_arch = "wasm32") {
+        return;
+    }
     let document = document.filter(|d| !d.is_empty()).map(PathBuf::from);
     for it in p.items.values_mut() {
         if let Some(m) = it.as_media_mut() {
