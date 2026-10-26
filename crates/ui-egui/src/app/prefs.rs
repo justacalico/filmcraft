@@ -202,6 +202,11 @@ impl FilmcraftApp {
         if let Some(restart) = self.hooks.restart.as_mut()
             && let Err(e) = restart(&self.session)
         {
+            // `on_exit` is already tearing the window down: the status line would never be seen,
+            // so a host that can shows a native dialog instead
+            if let Some(alert) = self.hooks.alert.as_mut() {
+                alert(&e);
+            }
             self.ui.status = e;
         }
     }

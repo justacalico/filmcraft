@@ -331,6 +331,10 @@ fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<A
         app.hooks.open_path = Some(Box::new(open_path));
         // The language-change notice's Restart button: relaunch with the same arguments.
         app.hooks.restart = Some(Box::new(relaunch));
+        // A relaunch failure is reported on the way out, when the status line is already gone.
+        app.hooks.alert = Some(Box::new(|msg: &str| {
+            let _ = rfd::MessageDialog::new().set_title("FilmCraft").set_description(msg).set_level(rfd::MessageLevel::Error).show();
+        }));
         // Help menu, About and Discord links (#642): eframe is built without its `links`
         // feature, so `ctx.open_url` does nothing on the desktop. Detached, so a launcher
         // that waits for the browser never freezes the UI.

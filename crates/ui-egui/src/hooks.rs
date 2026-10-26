@@ -99,6 +99,9 @@ pub struct HostHooks {
     /// Restart only closes the window. The session is passed so the host can persist it first
     /// (the web writes its OPFS recovery snapshot before reloading).
     pub restart: Option<Box<dyn FnMut(&Session) -> Result<(), String>>>,
+    /// Show a message outside the window (a native dialog) for what the status line can no longer
+    /// say: a failed relaunch is reported this way, while the window is already going away.
+    pub alert: Option<Box<dyn FnMut(&str)>>,
 }
 
 /// What [`HostHooks::clipboard_media`] found on the system clipboard.

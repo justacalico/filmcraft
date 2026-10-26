@@ -3,7 +3,7 @@
 //! and Later (the change still applies at the next start). Unsaved changes ask to save first, as
 //! with Quit.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc::{Sender, channel};
 
@@ -142,10 +142,15 @@ fn restart_closes_the_window_and_the_host_relaunches_on_exit() {
 fn a_relaunch_that_fails_says_why() {
     let mut d = Driver::new();
     d.app().hooks.restart = Some(Box::new(|_| Err("can't restart FilmCraft: no binary".into())));
+    let alerted = Rc::new(RefCell::new(Vec::new()));
+    let seen = Rc::clone(&alerted);
+    d.app().hooks.alert = Some(Box::new(move |m: &str| seen.borrow_mut().push(m.to_string())));
     d.ok("ui.menu.invoke", json!({"id": "app.language.spanish"}));
     d.frames(3);
     d.ok("ui.click", json!({"id": "language.restart.restart"}));
     eframe::App::on_exit(d.app());
+    // the window is gone by then: the failure is also told through the host's native dialog
+    assert_eq!(alerted.borrow().as_slice(), ["can't restart FilmCraft: no binary"]);
     assert!(d.app().ui.status.contains("no binary"), "{}", d.app().ui.status);
 }
 
